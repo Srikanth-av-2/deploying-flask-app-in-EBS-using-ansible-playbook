@@ -1,0 +1,64 @@
+---
+- name: Deploy Docker app to AWS ECR and Elastic Beanstalk
+  hosts: localhost
+  vars:
+    aws_access_key: "AKIAU6VTTHAIQM6NFRCD"
+    aws_secret_key: "your_secret_key"
+    aws_region: "us-east-1"
+    aws_account_id: "340752807953"
+    repository_name: "my-app"
+    docker_image_name: "flask_image"
+    docker_tag: "latest"
+    beanstalk_app_name: "my-docker-app"
+    beanstalk_env_name: "my-docker-env"
+    dockerrun_file: "Dockerrun.aws.json"
+
+  tasks:
+    - name: Configure AWS credentials
+      shell: |
+        aws configure set aws_access_key_id {{ aws_access_key }}
+        aws configure set aws_secret_access_key {{ aws_secret_key }}
+        aws configure set region {{ aws_region }}
+
+    - name: Create ECR repository
+      shell: |
+        aws ecr describe-repositories --repository-names {{ repository_name }} --region {{ aws_region }} || \
+        aws ecr create-repository --repository-name {{ repository_name }} --region {{ aws_region }}
+
+    - name: Authenticate Docker with ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | \
+        docker login --username AWS --password-stdin {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com
+
+    - name: Tag Docker image for ECR
+      shell: docker tag {{ docker_image_name }}:{{ docker_tag }} {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ repository_name }}:{{ docker_tag }}
+
+    - name: Push Docker image to ECR
+      shell: docker push {{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ repository_name }}:{{ docker_tag }}
+
+    - name: Create Dockerrun.aws.json
+      copy:
+        dest: "{{ dockerrun_file }}"
+        content: |
+          {
+            "AWSEBDockerrunVersion": "1",
+            "Image": {
+              "Name": "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ repository_name }}:{{ docker_tag }}",
+              "Update": "true"
+            },
+            "Ports": [
+              {
+                "ContainerPort": "80"
+              }
+            ]
+          }
+
+    - name: Initialize Elastic Beanstalk application
+      shell: eb init -p docker {{ beanstalk_app_name }} --region {{ aws_region }}
+      args:
+        chdir: "{{ playbook_dir }}"
+
+    - name: Create Elastic Beanstalk environment
+      shell: eb create {{ beanstalk_env_name }}
+      args:
+        chdir: "{{ playbook_dir }}"

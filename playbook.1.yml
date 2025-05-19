@@ -1,0 +1,22 @@
+- name: Deploy Flask App in Docker Container
+  hosts: flask_app
+    #  become: yes
+
+  vars:
+    app_name: flask_app
+    docker_image: flask_image
+    docker_container: flask_container
+    app_port: 5001
+
+  tasks:
+    - name: Build Docker image
+      command: docker build -t {{ docker_image }} .
+
+    - name: Remove existing container if any
+      command: docker rm -f {{ docker_container }}
+      ignore_errors: yes
+
+    - name: Run Docker container
+      command: >
+        docker run -d --name {{ docker_container }}
+        -p {{ app_port }}:5000 {{ docker_image }}
