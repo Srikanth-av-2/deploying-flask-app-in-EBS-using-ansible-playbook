@@ -1,0 +1,69 @@
+🔧 Step 1: Tag & Push Docker Image to Amazon ECR
+1.1 Authenticate with AWS CLI
+aws configure
+
+
+1.2 Create an Amazon ECR repository
+aws ecr create-repository --repository-name my-app --region us-east-1
+
+1.3 Authenticate Docker with ECR
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your-account-id>.dkr.ecr.us-east-1.amazonaws.com
+
+Eg: aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 340752807953.dkr.ecr.us-east-1.amazonaws.com
+
+1.4 Tag your Docker image
+docker tag my-app:latest <your-account-id>.dkr.ecr.us-east-1.amazonaws.com/my-app:latest
+Eg: docker tag flask_image:latest 340752807953.dkr.ecr.us-east-1.amazonaws.com/my-app:latest
+Note: Here you have to tag the image name same as repo name you created in 1.2 step then only below command in 1.5 step works
+
+1.5 Push the image to ECR
+docker push <your-account-id>.dkr.ecr.us-east-1.amazonaws.com/my-app:latest
+Eg: docker push 340752807953.dkr.ecr.us-east-1.amazonaws.com/my-app:latest
+
+
+🚀 Step 2: Deploy to Elastic Beanstalk
+✅ Option A: Use a Dockerrun.aws.json File (Simplest for ECR)
+Create a file named Dockerrun.aws.json with below content:
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "<your-account-id>.dkr.ecr.us-east-1.amazonaws.com/my-app:latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": "80"
+    }
+  ]
+}
+
+Deploy to Beanstalk:
+eb init -p docker my-docker-app --region us-east-1
+eb create my-docker-env
+
+
+If eb command is not installed then install it using below command
+
+pip3 install --upgrade --user awsebcli
+ ~/.local/bin/eb status
+
+
+
+✅ Step-by-Step: Revert AWS Elastic Beanstalk Setup
+🔥 1. Terminate the Elastic Beanstalk Environment
+eb terminate
+
+🗑️ 3. Clean Up ECR Images (If You Pushed Any)
+List images:
+aws ecr list-images --repository-name my-app --region us-east-1
+
+Delete images:
+aws ecr batch-delete-image --repository-name my-app --region us-east-1 --image-ids imageDigest=sha256:bc9c7aec575b182e5314b2fe6f1c0e57a870a75c967a243ffa142ebf9e1743ea
+
+Optionally delete the entire repository:
+aws ecr delete-repository --repository-name your-repo-name --force
+
+
+
+
+
